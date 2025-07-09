@@ -556,7 +556,15 @@
                 html += '</div>';
             }
 
-            html += '<div class="success-message">✅ Word saved to your vocabulary list!</div>';
+            // Add save button for AI response as well
+            html += `
+                <div style="text-align: center; margin-top: 25px;">
+                    <button onclick="saveToVocabulary()" class="save-btn" id="saveBtn">
+                        💾 Save to vocabulary list
+                    </button>
+                    <div id="saveMessage" style="display: none; margin-top: 15px;"></div>
+                </div>
+            `;
 
             resultContent.innerHTML = html;
             resultSection.style.display = 'block';
@@ -568,8 +576,12 @@
             resultSection.style.display = 'block';
         }
 
-        // Function to save word to vocabulary
-        async function saveToVocabulary() {
+        // Function to save word to vocabulary - MOVED INSIDE THE SCRIPT BLOCK
+        window.saveToVocabulary = async function() {
+            console.log('Save function called');
+            console.log('SAVE_WEBHOOK_URL:', SAVE_WEBHOOK_URL);
+            console.log('currentWordData:', currentWordData);
+            
             if (!currentWordData) {
                 document.getElementById('saveMessage').innerHTML = '<div class="error-message">No word data to save</div>';
                 document.getElementById('saveMessage').style.display = 'block';
@@ -584,6 +596,7 @@
             saveBtn.innerHTML = '💾 Saving...';
             
             try {
+                console.log('Sending save request to:', SAVE_WEBHOOK_URL);
                 const response = await fetch(SAVE_WEBHOOK_URL, {
                     method: 'POST',
                     headers: {
@@ -591,6 +604,8 @@
                     },
                     body: JSON.stringify(currentWordData)
                 });
+
+                console.log('Save response status:', response.status);
 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
