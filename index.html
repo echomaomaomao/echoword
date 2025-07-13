@@ -637,17 +637,17 @@
                 form.dispatchEvent(new Event('submit'));
             }
         });
-    </script>
-    </script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/echoword/service-worker.js')
-      .then(function(registration) {
-        console.log('ServiceWorker registered with scope:', registration.scope);
-      }).catch(function(error) {
-        console.log('ServiceWorker registration failed:', error);
-      });
-  }
-</script>
+  <!-- Service worker registration (add this before closing body tag) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/echoword/service-worker.js')
+        .then(function(registration) {
+          console.log('ServiceWorker registered with scope:', registration.scope);
+        }).catch(function(error) {
+          console.log('ServiceWorker registration failed:', error);
+        });
+    }
+  </script>
 
 </body>
 </html>
