@@ -232,6 +232,23 @@
             box-shadow: none;
         }
 
+        /* Debug panel styles */
+        .debug-panel {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 0.85em;
+        }
+
+        .debug-title {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 10px;
+        }
+
         @media (max-width: 600px) {
             .container {
                 margin: 10px;
@@ -274,6 +291,12 @@
                 <div class="spinner"></div>
                 Processing your word...
             </div>
+
+            <!-- Debug panel -->
+            <div class="debug-panel" id="debugPanel" style="display: none;">
+                <div class="debug-title">Debug Information:</div>
+                <div id="debugContent"></div>
+            </div>
         </div>
 
         <div class="result-section" id="resultSection">
@@ -285,19 +308,26 @@
 
     <script>
         // REPLACE THIS WITH YOUR ACTUAL WEBHOOK URL
-       const WEBHOOK_URL = 'https://xiaoyuan.app.n8n.cloud/webhook/e50639d5-af5b-4523-864a-cb123250887f';
+        const WEBHOOK_URL = 'https://xiaoyuan.app.n8n.cloud/webhook/e50639d5-af5b-4523-864a-cb123250887f';
         const SAVE_WEBHOOK_URL = 'https://xiaoyuan.app.n8n.cloud/webhook/e50639d5-af5b-4523-864a-dictionary-save';
         
-       // You'll need to create this
-
         const form = document.getElementById('dictionaryForm');
         const wordInput = document.getElementById('wordInput');
         const submitBtn = document.getElementById('submitBtn');
         const loading = document.getElementById('loading');
         const resultSection = document.getElementById('resultSection');
         const resultContent = document.getElementById('resultContent');
+        const debugPanel = document.getElementById('debugPanel');
+        const debugContent = document.getElementById('debugContent');
 
         let currentWordData = null; // Store current word data for saving
+
+        // Debug function
+        function debugLog(message, data) {
+            console.log(message, data);
+            debugContent.innerHTML += `<div><strong>${message}</strong><br><pre>${JSON.stringify(data, null, 2)}</pre></div><hr>`;
+            debugPanel.style.display = 'block';
+        }
 
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -305,29 +335,40 @@
             const word = wordInput.value.trim();
             if (!word) return;
 
+            // Clear previous debug info
+            debugContent.innerHTML = '';
+            debugPanel.style.display = 'none';
+
             // Show loading state
             submitBtn.disabled = true;
             loading.style.display = 'block';
             resultSection.style.display = 'none';
 
+            debugLog('Starting request for word:', word);
+            debugLog('Webhook URL:', WEBHOOK_URL);
+
             try {
-                // Send request to n8n webhook (corrected format)
+                // Send request to n8n webhook
+                const requestBody = { word: word };
+                debugLog('Request body:', requestBody);
+
                 const response = await fetch(WEBHOOK_URL, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        word: word  // Simple payload that matches your n8n webhook
-                    })
+                    body: JSON.stringify(requestBody)
                 });
+
+                debugLog('Response status:', response.status);
+                debugLog('Response headers:', Object.fromEntries(response.headers.entries()));
 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
                 const result = await response.json();
-                console.log('Full response from n8n:', JSON.stringify(result, null, 2)); // Enhanced debug log
+                debugLog('Raw response from n8n:', result);
                 
                 // Store the word data for potential saving
                 currentWordData = result;
@@ -337,7 +378,8 @@
                 
             } catch (error) {
                 console.error('Error:', error);
-                displayError('Sorry, there was an error processing your request. Please try again.');
+                debugLog('Error occurred:', error.message);
+                displayError(`Sorry, there was an error processing your request: ${error.message}`);
             } finally {
                 // Hide loading state
                 submitBtn.disabled = false;
@@ -346,7 +388,7 @@
         });
 
         function displayResult(result) {
-            console.log('Processing result:', result); // Debug log
+            debugLog('Processing result in displayResult:', result);
             
             // Check if result has the expected structure
             if (!result) {
@@ -354,137 +396,81 @@
                 return;
             }
 
-            // Handle array response from n8n (your current format)
+            // Handle array response from n8n
             if (Array.isArray(result) && result.length > 0) {
-                result = result[0]; // Get the first (and likely only) object from the array
+                debugLog('Result is array, taking first element:', result[0]);
+                result = result[0];
             }
 
-            console.log('After array check, result:', result); // Debug log
-            
-            // Check if this is an error response from the IF node
+            // Check if this is an error response
             if (result.error === true || result.message) {
                 displayError(result.message || 'Please provide a specific word in English or German.');
                 return;
             }
 
-            console.log('Examples found:', result.examples); // Debug the examples specifically
+            // Try multiple possible response formats
+            let word = result.Words || result.word || result.Word || 'Unknown word';
+            let meaning = result.chineseMeaning || result.meaning || result.definition || result.chinese_meaning;
+            let examples = result.examples || result.Examples || [];
 
-            // Handle the response format from your n8n workflow
-            // The response has: Words, created_at, chineseMeaning
-            if (result.Words && result.chineseMeaning) {
-                let html = `
-                    <div class="word-title">${result.Words}</div>
-                    <div class="definition">
-                        <strong>Chinese Meaning:</strong><br>
-                        ${result.chineseMeaning}
-                    </div>
-                `;
-                
-                // Add examples if available - with better debugging
-                console.log('Checking for examples...', result.examples);
-                if (result.examples) {
-                    console.log('Examples type:', typeof result.examples);
-                    console.log('Is array:', Array.isArray(result.examples));
-                    console.log('Examples length:', result.examples.length);
-                    
-                    if (Array.isArray(result.examples) && result.examples.length > 0) {
-                        html += '<div class="examples"><h3 style="margin-bottom: 15px; color: #333;">Examples:</h3>';
-                        result.examples.forEach((example, index) => {
-                            console.log(`Example ${index}:`, example);
-                            html += `
-                                <div class="example-item">
-                                    <div class="example-en">${index + 1}. ${example.sentence || example.english || example.en || 'No sentence found'}</div>
-                                    <div class="example-cn">${example.translation || example.chinese || example.cn || 'No translation found'}</div>
-                                </div>
-                            `;
-                        });
-                        html += '</div>';
-                    } else {
-                        html += `<div style="color: orange; margin: 10px 0;">Debug: Examples exists but is not a proper array. Type: ${typeof result.examples}, Value: ${JSON.stringify(result.examples)}</div>`;
-                    }
-                } else {
-                    html += '<div style="color: orange; margin: 10px 0;">Debug: No examples found in response</div>';
+            debugLog('Extracted data:', { word, meaning, examples });
+
+            if (!meaning) {
+                // If no meaning found, try to parse as raw AI response
+                if (typeof result === 'string' || result.response || result.aiResponse) {
+                    parseAndDisplayAIResponse(result.response || result.aiResponse || result);
+                    return;
                 }
                 
-                // Add save button instead of automatic success message
-                html += `
-                    <div style="text-align: center; margin-top: 25px;">
-                        <button onclick="saveToVocabulary()" class="save-btn" id="saveBtn">
-                            💾 Save to vocabulary list
-                        </button>
-                        <div id="saveMessage" style="display: none; margin-top: 15px;"></div>
-                    </div>
-                `;
-                
-                resultContent.innerHTML = html;
-                resultSection.style.display = 'block';
-                resultSection.scrollIntoView({ behavior: 'smooth' });
+                // Show debug info if we can't parse the response
+                displayError('Could not parse the response. Check debug panel for details.');
                 return;
             }
 
-            // If n8n returns the structured data with different field names
-            if (result.word && result.chineseMeaning) {
-                let html = `
-                    <div class="word-title">${result.word}</div>
-                    <div class="definition">
-                        <strong>Chinese Meaning:</strong><br>
-                        ${result.chineseMeaning}
-                    </div>
-                `;
-                
-                // Add examples if available
-                if (result.examples && Array.isArray(result.examples) && result.examples.length > 0) {
-                    html += '<div class="examples"><h3 style="margin-bottom: 15px; color: #333;">Examples:</h3>';
-                    result.examples.forEach((example, index) => {
-                        html += `
-                            <div class="example-item">
-                                <div class="example-en">${index + 1}. ${example.sentence || example.english || example.en}</div>
-                                <div class="example-cn">${example.translation || example.chinese || example.cn}</div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                }
-                
-                // Add save button instead of automatic success message
-                html += `
-                    <div style="text-align: center; margin-top: 25px;">
-                        <button onclick="saveToVocabulary()" class="save-btn" id="saveBtn">
-                            💾 Save to vocabulary list
-                        </button>
-                        <div id="saveMessage" style="display: none; margin-top: 15px;"></div>
-                    </div>
-                `;
-                
-                resultContent.innerHTML = html;
-                resultSection.style.display = 'block';
-                resultSection.scrollIntoView({ behavior: 'smooth' });
-                return;
-            }
-
-            // If n8n returns the raw AI response
-            if (result.response || result.aiResponse || typeof result === 'string') {
-                const responseText = result.response || result.aiResponse || result;
-                parseAndDisplayAIResponse(responseText);
-                return;
-            }
-
-            // If result is in a different format, display it as raw for debugging
-            resultContent.innerHTML = `
-                <div class="result-content">
-                    <h3>Debug - Raw Response:</h3>
-                    <div style="white-space: pre-wrap; background: #f8f9fa; padding: 20px; border-radius: 10px; font-family: monospace;">
-                        ${JSON.stringify(result, null, 2)}
-                    </div>
-                    <div class="error-message">The response format is not recognized. Please check your n8n workflow configuration.</div>
+            let html = `
+                <div class="word-title">${word}</div>
+                <div class="definition">
+                    <strong>Chinese Meaning:</strong><br>
+                    ${meaning}
                 </div>
             `;
+            
+            // Add examples if available
+            if (Array.isArray(examples) && examples.length > 0) {
+                html += '<div class="examples"><h3 style="margin-bottom: 15px; color: #333;">Examples:</h3>';
+                examples.forEach((example, index) => {
+                    let sentence = example.sentence || example.english || example.en || example.example || 'No sentence';
+                    let translation = example.translation || example.chinese || example.cn || example.translation_cn || 'No translation';
+                    
+                    html += `
+                        <div class="example-item">
+                            <div class="example-en">${index + 1}. ${sentence}</div>
+                            <div class="example-cn">${translation}</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            // Add save button
+            html += `
+                <div style="text-align: center; margin-top: 25px;">
+                    <button onclick="saveToVocabulary()" class="save-btn" id="saveBtn">
+                        💾 Save to vocabulary list
+                    </button>
+                    <div id="saveMessage" style="display: none; margin-top: 15px;"></div>
+                </div>
+            `;
+            
+            resultContent.innerHTML = html;
             resultSection.style.display = 'block';
             resultSection.scrollIntoView({ behavior: 'smooth' });
         }
 
         function parseAndDisplayAIResponse(responseText) {
-            // Parse the AI response text
+            debugLog('Parsing AI response:', responseText);
+            
+            // Your existing AI response parsing logic
             const lines = responseText.split('\n');
             let language = '';
             let word = '';
@@ -510,7 +496,6 @@
                 } else if (line === 'Examples:' || line.startsWith('Examples:')) {
                     inExamples = true;
                 } else if (inExamples && line && !line.includes('翻译:')) {
-                    // English example
                     if (currentExample && currentTranslation) {
                         examples.push({
                             sentence: currentExample,
@@ -520,12 +505,10 @@
                     currentExample = line.replace(/^\d+\.\s*/, '');
                     currentTranslation = '';
                 } else if (inExamples && line.includes('翻译:')) {
-                    // Chinese translation
                     currentTranslation = line.replace('翻译:', '').trim();
                 }
             }
 
-            // Add the last example
             if (currentExample && currentTranslation) {
                 examples.push({
                     sentence: currentExample,
@@ -533,7 +516,8 @@
                 });
             }
 
-            // Generate HTML
+            debugLog('Parsed AI response:', { word, language, partOfSpeech, definition, examples });
+
             let html = `
                 <div class="word-title">${word}</div>
                 ${language ? `<div class="language-tag">${language}</div>` : ''}
@@ -558,7 +542,6 @@
                 html += '</div>';
             }
 
-            // Add save button for AI response as well
             html += `
                 <div style="text-align: center; margin-top: 25px;">
                     <button onclick="saveToVocabulary()" class="save-btn" id="saveBtn">
@@ -578,12 +561,8 @@
             resultSection.style.display = 'block';
         }
 
-        // Function to save word to vocabulary - MOVED INSIDE THE SCRIPT BLOCK
+        // Function to save word to vocabulary
         window.saveToVocabulary = async function() {
-            console.log('Save function called');
-            console.log('SAVE_WEBHOOK_URL:', SAVE_WEBHOOK_URL);
-            console.log('currentWordData:', currentWordData);
-            
             if (!currentWordData) {
                 document.getElementById('saveMessage').innerHTML = '<div class="error-message">No word data to save</div>';
                 document.getElementById('saveMessage').style.display = 'block';
@@ -593,12 +572,10 @@
             const saveBtn = document.getElementById('saveBtn');
             const saveMessage = document.getElementById('saveMessage');
             
-            // Disable button and show loading
             saveBtn.disabled = true;
             saveBtn.innerHTML = '💾 Saving...';
             
             try {
-                console.log('Sending save request to:', SAVE_WEBHOOK_URL);
                 const response = await fetch(SAVE_WEBHOOK_URL, {
                     method: 'POST',
                     headers: {
@@ -607,25 +584,18 @@
                     body: JSON.stringify(currentWordData)
                 });
 
-                console.log('Save response status:', response.status);
-
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
-                // Show success message
                 saveMessage.innerHTML = '<div class="success-message">✅ Word saved to your vocabulary list!</div>';
                 saveMessage.style.display = 'block';
-                
-                // Hide the save button after successful save
                 saveBtn.style.display = 'none';
                 
             } catch (error) {
                 console.error('Save error:', error);
                 saveMessage.innerHTML = '<div class="error-message">Failed to save word. Please try again.</div>';
                 saveMessage.style.display = 'block';
-                
-                // Re-enable button
                 saveBtn.disabled = false;
                 saveBtn.innerHTML = '💾 Save to vocabulary list';
             }
@@ -637,16 +607,18 @@
                 form.dispatchEvent(new Event('submit'));
             }
         });
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/echoword/service-worker.js')
-        .then(function(registration) {
-          console.log('ServiceWorker registered with scope:', registration.scope);
-        }).catch(function(error) {
-          console.log('ServiceWorker registration failed:', error);
-        });
-    }
-  </script>
+    </script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/echoword/service-worker.js')
+                .then(function(registration) {
+                    console.log('ServiceWorker registered with scope:', registration.scope);
+                }).catch(function(error) {
+                    console.log('ServiceWorker registration failed:', error);
+                });
+        }
+    </script>
 
 </body>
 </html>
