@@ -232,22 +232,7 @@
             box-shadow: none;
         }
 
-        /* Debug panel styles */
-        .debug-panel {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 10px;
-            padding: 15px;
-            margin: 20px 0;
-            font-family: monospace;
-            font-size: 0.85em;
-        }
 
-        .debug-title {
-            font-weight: bold;
-            color: #495057;
-            margin-bottom: 10px;
-        }
 
         @media (max-width: 600px) {
             .container {
@@ -292,11 +277,7 @@
                 Processing your word...
             </div>
 
-            <!-- Debug panel -->
-            <div class="debug-panel" id="debugPanel" style="display: none;">
-                <div class="debug-title">Debug Information:</div>
-                <div id="debugContent"></div>
-            </div>
+
         </div>
 
         <div class="result-section" id="resultSection">
@@ -317,17 +298,8 @@
         const loading = document.getElementById('loading');
         const resultSection = document.getElementById('resultSection');
         const resultContent = document.getElementById('resultContent');
-        const debugPanel = document.getElementById('debugPanel');
-        const debugContent = document.getElementById('debugContent');
 
         let currentWordData = null; // Store current word data for saving
-
-        // Debug function
-        function debugLog(message, data) {
-            console.log(message, data);
-            debugContent.innerHTML += `<div><strong>${message}</strong><br><pre>${JSON.stringify(data, null, 2)}</pre></div><hr>`;
-            debugPanel.style.display = 'block';
-        }
 
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -335,22 +307,14 @@
             const word = wordInput.value.trim();
             if (!word) return;
 
-            // Clear previous debug info
-            debugContent.innerHTML = '';
-            debugPanel.style.display = 'none';
-
             // Show loading state
             submitBtn.disabled = true;
             loading.style.display = 'block';
             resultSection.style.display = 'none';
 
-            debugLog('Starting request for word:', word);
-            debugLog('Webhook URL:', WEBHOOK_URL);
-
             try {
                 // Send request to n8n webhook
                 const requestBody = { word: word };
-                debugLog('Request body:', requestBody);
 
                 const response = await fetch(WEBHOOK_URL, {
                     method: 'POST',
@@ -360,15 +324,11 @@
                     body: JSON.stringify(requestBody)
                 });
 
-                debugLog('Response status:', response.status);
-                debugLog('Response headers:', Object.fromEntries(response.headers.entries()));
-
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
                 const result = await response.json();
-                debugLog('Raw response from n8n:', result);
                 
                 // Store the word data for potential saving
                 currentWordData = result;
@@ -378,7 +338,6 @@
                 
             } catch (error) {
                 console.error('Error:', error);
-                debugLog('Error occurred:', error.message);
                 displayError(`Sorry, there was an error processing your request: ${error.message}`);
             } finally {
                 // Hide loading state
@@ -388,8 +347,6 @@
         });
 
         function displayResult(result) {
-            debugLog('Processing result in displayResult:', result);
-            
             // Check if result has the expected structure
             if (!result) {
                 displayError('No response received from server');
@@ -398,7 +355,6 @@
 
             // Handle array response from n8n
             if (Array.isArray(result) && result.length > 0) {
-                debugLog('Result is array, taking first element:', result[0]);
                 result = result[0];
             }
 
@@ -412,8 +368,6 @@
             let word = result.Words || result.word || result.Word || 'Unknown word';
             let meaning = result.chineseMeaning || result.meaning || result.definition || result.chinese_meaning;
             let examples = result.examples || result.Examples || [];
-
-            debugLog('Extracted data:', { word, meaning, examples });
 
             if (!meaning) {
                 // If no meaning found, try to parse as raw AI response
@@ -468,8 +422,6 @@
         }
 
         function parseAndDisplayAIResponse(responseText) {
-            debugLog('Parsing AI response:', responseText);
-            
             // Your existing AI response parsing logic
             const lines = responseText.split('\n');
             let language = '';
@@ -515,8 +467,6 @@
                     translation: currentTranslation
                 });
             }
-
-            debugLog('Parsed AI response:', { word, language, partOfSpeech, definition, examples });
 
             let html = `
                 <div class="word-title">${word}</div>
